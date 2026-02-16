@@ -1,21 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
 import { StockData, TradeSignal, RiskTolerance } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+let ai: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI | null {
+  if (!process.env.API_KEY) return null;
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return ai;
+}
 
 export const analyzeMarket = async (
   stock: StockData,
   mode: 'SCALP' | 'SWING' | 'LONG_TERM',
   riskTolerance?: RiskTolerance
 ): Promise<Partial<TradeSignal>> => {
-  if (!process.env.API_KEY) {
+  const client = getAI();
+  if (!client) {
     return generateOfflineAnalysis(stock, mode);
   }
 
   const prompt = buildAnalysisPrompt(stock, mode, riskTolerance);
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
@@ -48,7 +57,8 @@ export const buildPortfolioWithAI = async (
   riskTolerance: RiskTolerance,
   investmentAmount: number
 ): Promise<string> => {
-  if (!process.env.API_KEY) {
+  const client = getAI();
+  if (!client) {
     const suitable = stocks.filter(s => s.suitableFor.includes(riskTolerance)).slice(0, 5);
     const allocPer = Math.round(100 / Math.max(suitable.length, 1));
     return JSON.stringify({
@@ -91,7 +101,7 @@ export const buildPortfolioWithAI = async (
   ].join("\n");
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
       config: { responseMimeType: 'application/json' }
